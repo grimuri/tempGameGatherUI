@@ -139,7 +139,6 @@ jobs:
           echo "webapp_publish_url=$(terraform output -raw webapp_publish_url)" >> $GITHUB_OUTPUT
           echo "static_webapp_name=$(terraform output -raw static_webapp_name)" >> $GITHUB_OUTPUT
           echo "static_webapp_url=$(terraform output -raw static_webapp_url)" >> $GITHUB_OUTPUT
-          echo "static_webapp_token=$(terraform output -raw static_webapp_token)" >> $GITHUB_OUTPUT
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
