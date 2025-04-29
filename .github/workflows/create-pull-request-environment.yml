@@ -6,14 +6,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read      # Zmniejszone z write, bo nie tworzymy już releasów
-  id-token: write      # Potrzebne do OIDC z Azure
-  pull-requests: write # Potrzebne do komentowania PRów
+  contents: read      # Reduced from write because we don't create releases anymore
+  id-token: write     # Required for Azure OIDC
+  pull-requests: write # Required for commenting on PRs
 
 jobs:
-  
   terraform:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     defaults:
       run:
         working-directory: ./terraform/pr_environments
@@ -24,7 +23,6 @@ jobs:
       webapp_url: ${{ steps.terraform_output.outputs.webapp_publish_url }}
       static_webapp_name: ${{ steps.terraform_output.outputs.static_webapp_name }}
       static_webapp_url: ${{ steps.terraform_output.outputs.static_webapp_url }}
-      static_webapp_token: ${{ steps.terraform_output.outputs.static_webapp_token }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -147,6 +145,7 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
   download-backend-artifact:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - name: Get latest backend release
@@ -156,7 +155,7 @@ jobs:
           github-token: ${{ secrets.TOKEN_PAT }}
           script: |
             try {
-              // Pobierz listę releasów z repozytorium backendu
+              // Get list of releases from backend repository
               console.log("Fetching releases from tempGameGather repository...");
               const releases = await github.rest.repos.listReleases({
                 owner: context.repo.owner,
@@ -169,11 +168,11 @@ jobs:
                 return { found: false };
               }
               
-              // Znajdź najnowszy release (pierwszy na liście)
+              // Find the latest release (first in list)
               const latestRelease = releases.data[0];
               console.log(`Found latest release: ${latestRelease.name}, tag: ${latestRelease.tag_name}`);
               
-              // Znajdź asset z plikiem zip
+              // Find zip asset
               const zipAsset = latestRelease.assets.find(asset => 
                 asset.name.endsWith('.zip') || asset.name === 'gamegather-app.zip'
               );
@@ -222,13 +221,13 @@ jobs:
           
           echo "Downloading asset '$ASSET_NAME' from release $RELEASE_NAME (tag: $TAG_NAME)..."
           
-          # Logowanie do GitHub CLI z tokenem
+          # Login to GitHub CLI with token
           echo "${{ secrets.TOKEN_PAT }}" | gh auth login --with-token
           
-          # Pobierz plik release za pomocą GitHub CLI
+          # Download release file using GitHub CLI
           gh release download "$TAG_NAME" -R "$GITHUB_REPOSITORY_OWNER/tempGameGather" -p "$ASSET_NAME" -O ./backend/backend.zip
           
-          # Sprawdź, czy pobrano poprawnie
+          # Check if download succeeded
           if [ -f ./backend/backend.zip ]; then
             echo "File downloaded, checking size and content:"
             ls -la ./backend/backend.zip
@@ -259,7 +258,7 @@ jobs:
 
   deploy-backend:
     runs-on: ubuntu-latest
-    needs: [download-backend-artifact]
+    needs: [download-backend-artifact, terraform]
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:
       - name: Login to Azure
@@ -272,84 +271,84 @@ jobs:
           name: backend-zip
           path: ./backend
     
-      # Dodany krok rozpakowania artefaktu ZIP
-      - name: Rozpakuj backend artifact
+      # Added step to extract ZIP artifact
+      - name: Extract backend artifact
         run: |
-          # Informacje o pliku 
-          echo "Informacje o pobranym pliku ZIP:"
+          # File information
+          echo "Downloaded ZIP file information:"
           ls -la ./backend
           file ./backend/backend.zip
           
-          # Utwórz folder docelowy dla rozpakowania
+          # Create extraction directory
           mkdir -p ./extracted
           
-          # Rozpakuj archiwum ZIP
-          echo "Rozpakowywanie pliku ZIP..."
+          # Extract archive
+          echo "Extracting ZIP file..."
           unzip -o ./backend/backend.zip -d ./extracted
           
-          # Wyświetl zawartość rozpakowanego folderu
-          echo "Zawartość rozpakowanego folderu backendu:"
+          # Show extracted contents
+          echo "Extracted backend folder contents:"
           ls -la ./extracted
           
-          # Sprawdź strukturę plików
-          echo "Struktura plików rozpakowanego artefaktu:"
+          # Check file structure
+          echo "Extracted artifact file structure:"
           find ./extracted -type f | grep -E '\.(dll|json|config)$' | head -n 10
           
-          # Sprawdź czy rozpakowanie się powiodło
+          # Verify extraction succeeded
           if [ $(find ./extracted -type f | wc -l) -gt 0 ]; then
-            echo "Artefakt backendu został pomyślnie rozpakowany"
+            echo "Backend artifact successfully extracted"
           else
-            echo "BŁĄD: Rozpakowywanie nie powiodło się - rozpakowany katalog jest pusty"
+            echo "ERROR: Extraction failed - extracted directory is empty"
             exit 1
           fi
     
-      - name: Wdróż backend na Azure Web App
+      - name: Deploy backend to Azure Web App
         id: deploy-backend
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ needs.terraform.outputs.webapp_name }}
           resource-group-name: ${{ needs.terraform.outputs.resource_group_name }}
-          # Używamy folderu, do którego rozpakowaliśmy artefakt
+          # Use extracted folder
           package: ./extracted
 
   build-angular:
     runs-on: ubuntu-latest
-    needs: [deploy-backend]
+    # needs: [deploy-backend]
     steps:
       - uses: actions/checkout@v4
       
-      # Konfiguracja Node.js dla Angulara
-      - name: Konfiguracja Node.js
+      # Setup Node.js for Angular
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
       
-      # Tworzenie plików środowiskowych z dynamicznym adresem API
-      - name: Tworzenie plików środowiskowych
+      # Create environment files with dynamic API address
+      - name: Create environment files
         run: |
           mkdir -p src/environments
           
-          # Tworzenie environment.ts (produkcyjny)
+          # Create environment.ts (production)
           echo "export const environment = {" > src/environments/environment.ts
           echo "  production: true," >> src/environments/environment.ts
           echo "  apiUrl: '${{ needs.terraform.outputs.webapp_url }}'," >> src/environments/environment.ts
           echo "};" >> src/environments/environment.ts
           
-          # Wyświetlenie utworzonych plików
-          echo "Utworzone pliki środowiskowe:"
+          # Display created files
+          echo "Created environment files:"
           cat src/environments/environment.ts
       
-      # Instalacja zależności
-      - name: Instalacja zależności
+      # Install dependencies
+      - name: Install dependencies
         run: npm ci
       
-      # Budowanie aplikacji Angular
-      - name: Budowanie aplikacji Angular
+      # Build Angular application
+      - name: Build Angular application
         run: npm run build --configuration=production
       
-      # Przesyłanie artefaktu budowania Angular
-      - name: Przesyłanie artefaktu Angular
+      # Upload Angular build artifact
+      - name: Upload Angular artifact
         uses: actions/upload-artifact@v4
         with:
           name: angular-app
@@ -370,10 +369,10 @@ jobs:
           name: angular-app
           path: ./app-artifacts
 
-      # Wdrażanie UI za pomocą az CLI zamiast akcji Azure/static-web-apps-deploy
+      # Deploy UI using az CLI instead of Azure/static-web-apps-deploy action
       - name: Deploy UI to Static Web App
         run: |
-          # Wdrażanie za pomocą az CLI
+          # Deploy using az CLI
           az staticwebapp deploy \
             --source ./app-artifacts \
             --app-name ${{ needs.terraform.outputs.static_webapp_name }} \
@@ -396,7 +395,7 @@ jobs:
               return comment.user.type === 'Bot' && comment.body.includes('🚀 UI Deployment Status')
             })
             
-            // Preferuj URL ze Static Web App, jeśli jest dostępne
+            // Prefer Static Web App URL if available
             const staticWebAppUrl = "https://${{ needs.terraform.outputs.static_webapp_url }}";
             const apiUrl = '${{ needs.terraform.outputs.webapp_url }}/swagger/index.html';
             const backendRelease = '${{ env.BACKEND_RELEASE_NAME }}';
@@ -404,18 +403,18 @@ jobs:
             
             const output = `#### 🚀 UI Deployment Status: \`Success\`
             
-            Środowisko dla PR zostało pomyślnie wdrożone!
+            PR environment has been successfully deployed!
             
-            ### 🌐 URL-e środowiska
+            ### 🌐 Environment URLs
             
-            **Frontend URL**: [Kliknij tutaj, aby przejść do UI](${staticWebAppUrl})
-            **API URL**: [Dokumentacja API](${apiUrl})
+            **Frontend URL**: [Click here to visit UI](${staticWebAppUrl})
+            **API URL**: [API Documentation](${apiUrl})
             
-            ### 📦 Informacje o wersji
+            ### 📦 Version Information
             
             **Backend**: ${backendRelease} (tag: ${backendTag})
             
-            *Wdrożone przez: @${{ github.actor }}, PR: #${{ github.event.pull_request.number }}*`;
+            *Deployed by: @${{ github.actor }}, PR: #${{ github.event.pull_request.number }}*`;
             
             if (deployComment) {
               github.rest.issues.updateComment({

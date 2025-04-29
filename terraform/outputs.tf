@@ -22,8 +22,3 @@ output "static_webapp_url" {
   value = azurerm_static_web_app.static_web_app.default_host_name
   description = "URL statycznej aplikacji webowej"
 }
-
-output "static_webapp_token" {
-  value = azurerm_static_web_app.static_web_app.api_key
-  description = "Token do statycznej aplikacji webowej"
-}
