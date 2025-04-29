@@ -16,7 +16,7 @@ jobs:
   destroy:
     defaults:
       run:
-        working-directory: ./terraform/pr_environments
+        working-directory: ./terraform
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -67,12 +67,9 @@ jobs:
       run:
         working-directory: ./terraform
     outputs:
-      webapp_name: ${{ steps.terraform_output.outputs.webapp_name }}
-      resource_group_name: ${{ steps.terraform_output.outputs.resource_group_name }}
       static_webapp_name: ${{ steps.terraform_output.outputs.static_webapp_name }}
       static_webapp_url: ${{ steps.terraform_output.outputs.static_webapp_url }}
-      # Dodajemy URL API jako output - jest to URL backendu produkcyjnego
-      api_url: ${{ steps.terraform_output.outputs.webapp_publish_url }}
+      resource_group_name: ${{ steps.terraform_output.outputs.resource_group_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -127,19 +124,16 @@ jobs:
       - name: Terraform Output
         id: terraform_output
         run: |
-          echo "resource_group_name=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
-          echo $(terraform output -raw resource_group_name)
           echo "static_webapp_name=$(terraform output -raw static_webapp_name)" >> $GITHUB_OUTPUT
           echo "static_webapp_url=$(terraform output -raw static_webapp_url)" >> $GITHUB_OUTPUT
-          echo "webapp_name=$(terraform output -raw webapp_name)" >> $GITHUB_OUTPUT
-          echo "webapp_publish_url=$(terraform output -raw webapp_publish_url)" >> $GITHUB_OUTPUT
+          echo "resource_group_name=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
-  # Job do budowania aplikacji Angular z produkcyjnym URL backendu
+  # Job to build Angular application with production API URL
   build-angular-prod:
     if: github.event.pull_request.merged == true
     needs: [terraform_prod]
@@ -154,14 +148,14 @@ jobs:
           node-version: '20'
           cache: 'npm'
       
-      # Sprawdź nazwę projektu Angular
+      # Check Angular project name
       - name: Check Angular project name
         id: project-name
         run: |
-          # Odczytaj nazwę projektu z angular.json
+          # Read project name from angular.json
           PROJECT_NAME=$(cat angular.json | jq -r '.defaultProject // ""')
           
-          # Jeśli nie ma defaultProject, spróbuj pobrać pierwszy projekt
+          # If defaultProject is not defined, try to get the first project
           if [[ -z "$PROJECT_NAME" || "$PROJECT_NAME" == "null" ]]; then
             PROJECT_NAME=$(cat angular.json | jq -r 'keys | .[] | select(. != "version" and . != "$schema")' | head -n 1)
           fi
@@ -177,13 +171,8 @@ jobs:
           # Create environment.ts (production)
           echo "export const environment = {" > src/environments/environment.ts
           echo "  production: true," >> src/environments/environment.ts
-          echo "  apiUrl: '${{ needs.terraform_prod.outputs.api_url }}/api'," >> src/environments/environment.ts
+          echo "  apiUrl: 'https://gamegather-api-webapp.azurewebsites.net/api'," >> src/environments/environment.ts
           echo "};" >> src/environments/environment.ts
-          
-          # Display created files
-          echo "Created production environment files:"
-          echo "API URL: ${{ needs.terraform_prod.outputs.api_url }}/api"
-          cat src/environments/environment.ts
       
       # Install dependencies
       - name: Install dependencies
@@ -304,7 +293,6 @@ jobs:
               ### 🌐 Production URLs
               
               **Frontend URL**: [https://${{ needs.terraform_prod.outputs.static_webapp_url }}](https://${{ needs.terraform_prod.outputs.static_webapp_url }})
-              **API URL**: [${{ needs.terraform_prod.outputs.api_url }}](${{ needs.terraform_prod.outputs.api_url }}/swagger/index.html)
               
               *Deployed by: @${context.actor} after merging PR #${prNumber}*`
             });
