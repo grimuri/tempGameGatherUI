@@ -11,8 +11,9 @@ permissions:
   pull-requests: write # Potrzebne do komentowania PRów
 
 jobs:
+  
   terraform:
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
     defaults:
       run:
         working-directory: ./terraform/pr_environments
@@ -147,7 +148,7 @@ jobs:
 
   download-backend-artifact:
     runs-on: ubuntu-latest
-    needs: [terraform]
+    #needs: [terraform]
     steps:
       - name: Get latest backend release
         id: get-latest-release
@@ -230,7 +231,7 @@ jobs:
 
   deploy-backend:
     runs-on: ubuntu-latest
-    needs: [download-backend-artifact, terraform]
+    needs: [download-backend-artifact]
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:
       - name: Login to Azure
@@ -246,6 +247,8 @@ jobs:
       # Dodany krok rozpakowania artefaktu ZIP
       - name: Rozpakuj backend artifact
         run: |
+          ls -la
+
           # Utwórz folder docelowy
           mkdir -p ./backend/extracted
           
