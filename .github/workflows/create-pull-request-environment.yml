@@ -329,7 +329,7 @@ jobs:
 
   deploy-angular:
     runs-on: ubuntu-latest
-    needs: [build-angulur]
+    needs: [build-angular, terraform]
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:        
       - name: Login to Azure
