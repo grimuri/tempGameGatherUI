@@ -243,13 +243,36 @@ jobs:
           name: backend-zip
           path: ./backend
       
+      # Dodany krok rozpakowania artefaktu ZIP
+      - name: Rozpakuj backend artifact
+        run: |
+          # Utwórz folder docelowy
+          mkdir -p ./backend/extracted
+          
+          # Rozpakuj archiwum ZIP
+          unzip -o ./backend/backend.zip -d ./backend/extracted
+          
+          # Wyświetl zawartość rozpakowanego folderu
+          echo "Zawartość rozpakowanego folderu backendu:"
+          ls -la ./backend/extracted
+          
+          # Sprawdź czy główne pliki są dostępne
+          if [ -f ./backend/extracted/web.config ] || [ -f ./backend/extracted/GameGather.dll ]; then
+            echo "Artefakt backendu został poprawnie rozpakowany"
+          else
+            echo "Uwaga: Nie znaleziono oczekiwanych plików w rozpakowanym artefakcie backendu"
+            # Wypisz pełną strukturę plików, aby pomóc w debugowaniu
+            find ./backend/extracted -type f | sort
+          fi
+      
       - name: Wdróż backend na Azure Web App
         id: deploy-backend
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ needs.terraform.outputs.webapp_name }}
           resource-group-name: ${{ needs.terraform.outputs.resource_group_name }}
-          package: ./backend/backend.zip
+          # Zmieniona ścieżka na rozpakowany folder z artefaktem
+          package: ./backend/extracted
 
   build-angular:
     runs-on: ubuntu-latest
