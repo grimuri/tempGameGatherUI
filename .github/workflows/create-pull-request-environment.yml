@@ -324,6 +324,21 @@ jobs:
           node-version: '20'
           cache: 'npm'
       
+      # Sprawdź nazwę projektu Angular
+      - name: Check Angular project name
+        id: project-name
+        run: |
+          # Odczytaj nazwę projektu z angular.json
+          PROJECT_NAME=$(cat angular.json | jq -r '.defaultProject // ""')
+          
+          # Jeśli nie ma defaultProject, spróbuj pobrać pierwszy projekt
+          if [[ -z "$PROJECT_NAME" || "$PROJECT_NAME" == "null" ]]; then
+            PROJECT_NAME=$(cat angular.json | jq -r 'keys | .[] | select(. != "version" and . != "$schema")' | head -n 1)
+          fi
+          
+          echo "Angular project name detected as: $PROJECT_NAME"
+          echo "project_name=$PROJECT_NAME" >> $GITHUB_OUTPUT
+
       # Create environment files with dynamic API address
       - name: Create environment files
         run: |
@@ -334,40 +349,72 @@ jobs:
           echo "  production: true," >> src/environments/environment.ts
           echo "  apiUrl: '${{ needs.terraform.outputs.webapp_url }}'," >> src/environments/environment.ts
           echo "};" >> src/environments/environment.ts
-          
-          # Display created files
-          echo "Created environment files:"
-          cat src/environments/environment.ts
-      
+    
       # Install dependencies
       - name: Install dependencies
         run: npm ci
-      
+    
       # Build Angular application
       - name: Build Angular application
-        run: npm run build --configuration=production
-      
+        run: npm run build -- --configuration production
+    
+      # List build output
+      - name: List build output
+        run: |
+          echo "Dist directory contents:"
+          ls -la ./dist
+          echo "Project name from previous step: ${{ steps.project-name.outputs.project_name }}"
+          
+          # Dodatkowe sprawdzenie wygenerowanych plików
+          if [ -d "./dist/${{ steps.project-name.outputs.project_name }}" ]; then
+            echo "Found project subdirectory in dist:"
+            ls -la "./dist/${{ steps.project-name.outputs.project_name }}"
+          else
+            echo "Using root dist directory for artifact"
+          fi
+    
       # Upload Angular build artifact
       - name: Upload Angular artifact
         uses: actions/upload-artifact@v4
         with:
           name: angular-app
-          path: ./dist/
+          # Jeśli istnieje podkatalog z nazwą projektu, użyj go
+          path: |
+            ./dist/${{ steps.project-name.outputs.project_name }}
+            ./dist/*
+          if-no-files-found: error
 
   deploy-angular:
     runs-on: ubuntu-latest
     needs: [build-angular, terraform]
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:        
-      - name: Checkout repository
-        uses: actions/checkout@v4
-    
+      - name: Login to Azure
+        run: |
+          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none   
+      
       - name: Download Angular artifact
         uses: actions/download-artifact@v4
         with:
           name: angular-app
           path: ./app-artifacts
-    
+        
+      # Sprawdź czy pliki zostały prawidłowo pobrane
+      - name: Verify downloaded files
+        run: |
+          echo "Downloaded artifact contents:"
+          ls -la ./app-artifacts
+          
+          # Sprawdź czy index.html istnieje
+          if [ -f "./app-artifacts/index.html" ]; then
+            echo "index.html found - deployment can proceed"
+          else
+            echo "ERROR: index.html not found in app-artifacts directory"
+            echo "Full directory structure:"
+            find ./app-artifacts -type f | head -n 20
+            exit 1
+          fi
+        
       # Get deployment token
       - name: Get Static Web App deployment token
         id: get-token
@@ -390,62 +437,5 @@ jobs:
           repo_token: ${{ github.token }}
           action: "upload"
           app_location: "./app-artifacts"
-          skip_app_build: true # Skip build as we already have built artifacts
-          output_location: "" # No output location needed since we're providing built files directly
-    
-      - name: Add deployment comment to PR
-        uses: actions/github-script@v6
-        if: github.event_name == 'pull_request'
-        with:
-          github-token: ${{ github.token }}
-          script: |
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            })
-            
-            const deployComment = comments.find(comment => {
-              return comment.user.type === 'Bot' && comment.body.includes('🚀 UI Deployment Status')
-            })
-            
-            // Prefer Static Web App URL if available
-            const staticWebAppUrl = "https://${{ needs.terraform.outputs.static_webapp_url }}";
-            const apiUrl = '${{ needs.terraform.outputs.webapp_url }}/swagger/index.html';
-            const backendRelease = '${{ env.BACKEND_RELEASE_NAME }}';
-            const backendTag = '${{ env.BACKEND_TAG_NAME }}';
-            
-            const output = `#### 🚀 UI Deployment Status: \`Success\`
-            
-            PR environment has been successfully deployed!
-            
-            ### 🌐 Environment URLs
-            
-            **Frontend URL**: [Click here to visit UI](${staticWebAppUrl})
-            **API URL**: [API Documentation](${apiUrl})
-            
-            ### 📦 Version Information
-            
-            **Backend**: ${backendRelease} (tag: ${backendTag})
-            
-            *Deployed by: @${{ github.actor }}, PR: #${{ github.event.pull_request.number }}*`;
-            
-            if (deployComment) {
-              github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: deployComment.id,
-                body: output
-              })
-            } else {
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: output
-              })
-            }
-
-      - name: Logout from Azure
-        run: |
-          az logout
+          skip_app_build: true
+          output_location: ""
