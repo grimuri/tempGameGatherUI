@@ -148,13 +148,11 @@ jobs:
 
   download-backend-artifact:
     runs-on: ubuntu-latest
-    #needs: [terraform]
     steps:
       - name: Get latest backend release
         id: get-latest-release
         uses: actions/github-script@v7
         with:
-          # Zmieniona nazwa tokenu z GITHUB_PAT na TOKEN_PAT
           github-token: ${{ secrets.TOKEN_PAT }}
           script: |
             try {
@@ -185,33 +183,50 @@ jobs:
                 return { found: false };
               }
               
-              console.log(`Found zip asset: ${zipAsset.name}, download URL: ${zipAsset.browser_download_url}`);
+              console.log(`Found zip asset: ${zipAsset.name}, download URL: ${zipAsset.browser_download_url}, ID: ${zipAsset.id}`);
               
               return { 
                 found: true, 
                 url: zipAsset.browser_download_url,
                 release_name: latestRelease.name,
-                tag_name: latestRelease.tag_name
+                tag_name: latestRelease.tag_name,
+                asset_id: zipAsset.id,
+                asset_name: zipAsset.name
               };
             } catch (error) {
               console.error(`Error fetching releases: ${error.message}`);
               return { found: false };
             }
       
-      - name: Download backend artifact
+      - name: Install GitHub CLI
+        if: fromJSON(steps.get-latest-release.outputs.result).found
+        run: |
+          type -p gh &>/dev/null || {
+            echo "GitHub CLI not found. Installing..."
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt update
+            sudo apt install gh
+          }
+          
+          echo "GitHub CLI version:"
+          gh --version
+    
+      - name: Download backend artifact with GitHub CLI
         if: fromJSON(steps.get-latest-release.outputs.result).found
         run: |
           mkdir -p ./backend
-          DOWNLOAD_URL=$(echo '${{ steps.get-latest-release.outputs.result }}' | jq -r '.url')
           RELEASE_NAME=$(echo '${{ steps.get-latest-release.outputs.result }}' | jq -r '.release_name')
           TAG_NAME=$(echo '${{ steps.get-latest-release.outputs.result }}' | jq -r '.tag_name')
+          ASSET_NAME=$(echo '${{ steps.get-latest-release.outputs.result }}' | jq -r '.asset_name')
           
-          echo "Downloading backend artifact from: $DOWNLOAD_URL"
-          echo "Release: $RELEASE_NAME (Tag: $TAG_NAME)"
+          echo "Downloading asset '$ASSET_NAME' from release $RELEASE_NAME (tag: $TAG_NAME)..."
           
-          # Użyj curl z opcjami diagnostycznymi i opcją -L do śledzenia przekierowań
-          echo "Pobieranie pliku za pomocą curl z opcjami diagnostycznymi..."
-          curl -v -L -o ./backend/backend.zip "$DOWNLOAD_URL"
+          # Logowanie do GitHub CLI z tokenem
+          echo "${{ secrets.TOKEN_PAT }}" | gh auth login --with-token
+          
+          # Pobierz plik release za pomocą GitHub CLI
+          gh release download "$TAG_NAME" -R "$GITHUB_REPOSITORY_OWNER/tempGameGather" -p "$ASSET_NAME" -O ./backend/backend.zip
           
           # Sprawdź, czy pobrano poprawnie
           if [ -f ./backend/backend.zip ]; then
@@ -219,41 +234,17 @@ jobs:
             ls -la ./backend/backend.zip
             file ./backend/backend.zip
             
-            # Sprawdź rozmiar pliku - jeśli jest za mały, próbuj pobrać bezpośrednio przez API
             FILE_SIZE=$(stat -c %s ./backend/backend.zip)
             if [ "$FILE_SIZE" -lt 1000 ]; then
-              echo "WARNING: Downloaded file is too small ($FILE_SIZE bytes). Trying API download method..."
-              
-              # Pobierz plik używając innej metody - bezpośrednio przez API GitHub
-              GH_API_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.TOKEN_PAT }}" \
-                                 -H "Accept: application/octet-stream" \
-                                 "https://api.github.com/repos/${GITHUB_REPOSITORY_OWNER}/tempGameGather/releases/assets/$(echo '${{ steps.get-latest-release.outputs.result }}' | jq -r '.asset_id')")
-              
-              # Pobierz plik z alternatywnej ścieżki - pobierz go przez przeglądarkę URL
-              echo "Trying browser download..."
-              # Używamy opcji -H "Accept: application/octet-stream" aby wymusić pobranie pliku
-              curl -L -H "Authorization: token ${{ secrets.TOKEN_PAT }}" \
-                   -H "Accept: application/octet-stream" \
-                   -o ./backend/backend.zip "$DOWNLOAD_URL"
-              
-              # Sprawdź ponownie
-              ls -la ./backend/backend.zip
-              file ./backend/backend.zip
-              
-              FILE_SIZE=$(stat -c %s ./backend/backend.zip)
-              if [ "$FILE_SIZE" -lt 1000 ]; then
-                echo "ERROR: Still can't download a valid ZIP file"
-                cat ./backend/backend.zip
-                exit 1
-              else
-                echo "Successfully downloaded backend artifact using alternative method"
-              fi
+              echo "ERROR: Downloaded file is too small ($FILE_SIZE bytes)"
+              echo "File content:"
+              cat ./backend/backend.zip
+              exit 1
             else
-              echo "Successfully downloaded backend artifact"
+              echo "Successfully downloaded backend artifact ($FILE_SIZE bytes)"
+              echo "BACKEND_RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_ENV 
+              echo "BACKEND_TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
             fi
-            
-            echo "BACKEND_RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_ENV 
-            echo "BACKEND_TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
           else
             echo "Failed to download backend artifact"
             exit 1
