@@ -87,7 +87,7 @@ resource "azurerm_linux_web_app" "as" {
 
 resource "azurerm_resource_group" "rg_frontend" {
   name     = "${var.prefix_ui}-rg"
-  location = var.location
+  location = "westeurope"
 }
 
 resource "azurerm_static_web_app" "static_web_app" {
