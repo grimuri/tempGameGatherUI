@@ -347,7 +347,7 @@ jobs:
           # Create environment.ts (production)
           echo "export const environment = {" > src/environments/environment.ts
           echo "  production: true," >> src/environments/environment.ts
-          echo "  apiUrl: '${{ needs.terraform.outputs.webapp_url }}'," >> src/environments/environment.ts
+          echo "  apiUrl: '${{ needs.terraform.outputs.webapp_url }}/api'," >> src/environments/environment.ts
           echo "};" >> src/environments/environment.ts
     
       # Install dependencies
