@@ -6,7 +6,7 @@ resource "azurerm_resource_group" "rg_db" {
 }
 
 resource "azurerm_postgresql_flexible_server" "postgresql_server" {
-  name                   = "${var.prefix_db}-db-server"
+  name                   = "${var.prefix_db}-server"
   resource_group_name    = azurerm_resource_group.rg_db.name
   location               = azurerm_resource_group.rg_db.location
   version                = "16"
@@ -23,7 +23,7 @@ resource "azurerm_postgresql_flexible_server" "postgresql_server" {
 }
 
 resource "azurerm_postgresql_flexible_server_database" "postgresql_db" {
-  name      = "${var.prefix_db}-db"
+  name      = "${var.prefix_db}-database"
   server_id = azurerm_postgresql_flexible_server.postgresql_server.id
   collation = "en_US.utf8"
   charset   = "UTF8"
@@ -57,7 +57,7 @@ resource "azurerm_resource_group" "rg" {
 }
 
 resource "azurerm_service_plan" "asp" {
-  name                = "asp-${var.prefix_api}"
+  name                = "${var.prefix_api}-asp"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   os_type             = "Linux"
@@ -65,7 +65,7 @@ resource "azurerm_service_plan" "asp" {
 }
 
 resource "azurerm_linux_web_app" "as" {
-  name                = "webapp-${var.prefix_api}"
+  name                = "${var.prefix_api}-webapp"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   service_plan_id     = azurerm_service_plan.asp.id
