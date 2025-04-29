@@ -231,51 +231,58 @@ jobs:
 
   deploy-backend:
     runs-on: ubuntu-latest
-    needs: [download-backend-artifact]
+    needs: [download-backend-artifact, terraform]
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:
       - name: Login to Azure
         run: |
           az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
-      
+    
       - name: Download backend artifact
         uses: actions/download-artifact@v4
         with:
           name: backend-zip
           path: ./backend
-      
+    
       # Dodany krok rozpakowania artefaktu ZIP
       - name: Rozpakuj backend artifact
         run: |
-          ls -la
-
-          # Utwórz folder docelowy
-          mkdir -p ./backend/extracted
+          # Informacje o pliku 
+          echo "Informacje o pobranym pliku ZIP:"
+          ls -la ./backend
+          file ./backend/backend.zip
+          
+          # Utwórz folder docelowy dla rozpakowania
+          mkdir -p ./extracted
           
           # Rozpakuj archiwum ZIP
-          unzip -o ./backend/backend.zip -d ./backend/extracted
+          echo "Rozpakowywanie pliku ZIP..."
+          unzip -o ./backend/backend.zip -d ./extracted
           
           # Wyświetl zawartość rozpakowanego folderu
           echo "Zawartość rozpakowanego folderu backendu:"
-          ls -la ./backend/extracted
+          ls -la ./extracted
           
-          # Sprawdź czy główne pliki są dostępne
-          if [ -f ./backend/extracted/web.config ] || [ -f ./backend/extracted/GameGather.dll ]; then
-            echo "Artefakt backendu został poprawnie rozpakowany"
+          # Sprawdź strukturę plików
+          echo "Struktura plików rozpakowanego artefaktu:"
+          find ./extracted -type f | grep -E '\.(dll|json|config)$' | head -n 10
+          
+          # Sprawdź czy rozpakowanie się powiodło
+          if [ $(find ./extracted -type f | wc -l) -gt 0 ]; then
+            echo "Artefakt backendu został pomyślnie rozpakowany"
           else
-            echo "Uwaga: Nie znaleziono oczekiwanych plików w rozpakowanym artefakcie backendu"
-            # Wypisz pełną strukturę plików, aby pomóc w debugowaniu
-            find ./backend/extracted -type f | sort
+            echo "BŁĄD: Rozpakowywanie nie powiodło się - rozpakowany katalog jest pusty"
+            exit 1
           fi
-      
+    
       - name: Wdróż backend na Azure Web App
         id: deploy-backend
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ needs.terraform.outputs.webapp_name }}
           resource-group-name: ${{ needs.terraform.outputs.resource_group_name }}
-          # Zmieniona ścieżka na rozpakowany folder z artefaktem
-          package: ./backend/extracted
+          # Używamy folderu, do którego rozpakowaliśmy artefakt
+          package: ./extracted
 
   build-angular:
     runs-on: ubuntu-latest
