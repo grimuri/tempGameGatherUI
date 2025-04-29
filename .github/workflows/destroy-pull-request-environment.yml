@@ -139,7 +139,7 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
-  # Nowy job do budowania aplikacji Angular z produkcyjnym URL backendu
+  # Job do budowania aplikacji Angular z produkcyjnym URL backendu
   build-angular-prod:
     if: github.event.pull_request.merged == true
     needs: [terraform_prod]
@@ -147,43 +147,77 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # Konfiguracja Node.js dla Angulara
-      - name: Konfiguracja Node.js
+      # Setup Node.js for Angular
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
       
-      # Tworzenie plików środowiskowych z produkcyjnym adresem API
-      - name: Tworzenie plików środowiskowych produkcyjnych
+      # Sprawdź nazwę projektu Angular
+      - name: Check Angular project name
+        id: project-name
+        run: |
+          # Odczytaj nazwę projektu z angular.json
+          PROJECT_NAME=$(cat angular.json | jq -r '.defaultProject // ""')
+          
+          # Jeśli nie ma defaultProject, spróbuj pobrać pierwszy projekt
+          if [[ -z "$PROJECT_NAME" || "$PROJECT_NAME" == "null" ]]; then
+            PROJECT_NAME=$(cat angular.json | jq -r 'keys | .[] | select(. != "version" and . != "$schema")' | head -n 1)
+          fi
+          
+          echo "Angular project name detected as: $PROJECT_NAME"
+          echo "project_name=$PROJECT_NAME" >> $GITHUB_OUTPUT
+      
+      # Create environment files with production API address
+      - name: Create environment files
         run: |
           mkdir -p src/environments
           
-          # Tworzenie environment.ts (produkcyjny)
+          # Create environment.ts (production)
           echo "export const environment = {" > src/environments/environment.ts
           echo "  production: true," >> src/environments/environment.ts
           echo "  apiUrl: '${{ needs.terraform_prod.outputs.api_url }}'," >> src/environments/environment.ts
           echo "};" >> src/environments/environment.ts
           
-          # Wyświetlenie utworzonych plików
-          echo "Utworzone pliki środowiskowe produkcyjne:"
+          # Display created files
+          echo "Created production environment files:"
           echo "API URL: ${{ needs.terraform_prod.outputs.api_url }}"
           cat src/environments/environment.ts
       
-      # Instalacja zależności
-      - name: Instalacja zależności
+      # Install dependencies
+      - name: Install dependencies
         run: npm ci
       
-      # Budowanie aplikacji Angular dla produkcji
-      - name: Budowanie aplikacji Angular dla produkcji
+      # Build Angular application
+      - name: Build Angular application
         run: npm run build --configuration=production
       
-      # Przesyłanie artefaktu budowania Angular
-      - name: Przesyłanie artefaktu Angular
+      # List build output
+      - name: List build output
+        run: |
+          echo "Dist directory contents:"
+          ls -la ./dist
+          echo "Project name from previous step: ${{ steps.project-name.outputs.project_name }}"
+          
+          # Check generated files
+          if [ -d "./dist/${{ steps.project-name.outputs.project_name }}" ]; then
+            echo "Found project subdirectory in dist:"
+            ls -la "./dist/${{ steps.project-name.outputs.project_name }}"
+          else
+            echo "Using root dist directory for artifact"
+          fi
+      
+      # Upload Angular build artifact
+      - name: Upload Angular artifact
         uses: actions/upload-artifact@v4
         with:
           name: angular-app-prod
-          path: ./dist/
+          # If project subdirectory exists, use it
+          path: |
+            ./dist/${{ steps.project-name.outputs.project_name }}
+            ./dist/*
+          if-no-files-found: error
 
   deploy:
     if: github.event.pull_request.merged == true
@@ -198,22 +232,58 @@ jobs:
           echo "Logging in to Azure..."
           az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
 
-      # Pobieramy nasz nowo zbudowany artefakt zamiast artefaktu z poprzedniego workflow
+      # Download our newly built artifact
       - name: Download Angular production artifact
         uses: actions/download-artifact@v4
         with:
           name: angular-app-prod
           path: ./app-artifacts
-
-      # Wdrażanie UI
-      - name: Deploy UI to Static Web App
+          
+      # Find path to index.html
+      - name: Find path to index.html
+        id: find-index
         run: |
-          # Wdrażanie za pomocą az CLI
-          az staticwebapp deploy \
-            --source ./app-artifacts \
-            --app-name ${{ needs.terraform_prod.outputs.static_webapp_name }} \
-            --resource-group ${{ needs.terraform_prod.outputs.resource_group_name }} \
-            --no-wait
+          echo "Downloaded artifact contents:"
+          ls -la ./app-artifacts
+          
+          # Find index.html file
+          INDEX_PATH=$(find ./app-artifacts -name "index.html" | head -n 1)
+          
+          if [ -z "$INDEX_PATH" ]; then
+            echo "❌ ERROR: index.html not found in artifacts!"
+            find ./app-artifacts -type f | head -n 20
+            exit 1
+          fi
+          
+          # Get directory containing index.html
+          INDEX_DIR=$(dirname "$INDEX_PATH")
+          echo "✅ Found index.html in: $INDEX_DIR"
+          
+          # Save as output variable
+          echo "index_dir=$INDEX_DIR" >> $GITHUB_OUTPUT
+    
+      # Get deployment token
+      - name: Get Static Web App deployment token
+        id: get-token
+        run: |
+          # Get deployment token
+          appName="${{ needs.terraform_prod.outputs.static_webapp_name }}"
+          deploymentToken=$(az staticwebapp secrets list --name "$appName" --query "properties.apiKey" -o tsv)
+          
+          # Set output without exposing token in logs
+          echo "::add-mask::$deploymentToken"
+          echo "deployment_token=$deploymentToken" >> $GITHUB_OUTPUT
+    
+      # Use the official action with dynamic app_location
+      - name: Deploy UI to Static Web App
+        uses: Azure/static-web-apps-deploy@1a947af9992250f3bc2e68ad0754c0b0c11566c9
+        with:
+          azure_static_web_apps_api_token: ${{ steps.get-token.outputs.deployment_token }}
+          repo_token: ${{ github.token }}
+          action: "upload"
+          app_location: "${{ steps.find-index.outputs.index_dir }}"
+          skip_app_build: true
+          output_location: ""
 
       - name: Add deployment comment to PR
         uses: actions/github-script@v6
@@ -227,16 +297,16 @@ jobs:
               issue_number: prNumber,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `#### 🚀 Produkcyjne wdrożenie UI zakończone sukcesem!
+              body: `#### 🚀 Production UI deployment successful!
               
-              Frontend został pomyślnie wdrożony do środowiska produkcyjnego.
+              Frontend has been successfully deployed to production environment.
               
-              ### 🌐 URL produkcyjny
+              ### 🌐 Production URLs
               
               **Frontend URL**: [https://${{ needs.terraform_prod.outputs.static_webapp_url }}](https://${{ needs.terraform_prod.outputs.static_webapp_url }})
               **API URL**: [${{ needs.terraform_prod.outputs.api_url }}](${{ needs.terraform_prod.outputs.api_url }}/swagger/index.html)
               
-              *Wdrożone przez: @${context.actor} po zmergeowaniu PR #${prNumber}*`
+              *Deployed by: @${context.actor} after merging PR #${prNumber}*`
             });
 
       - name: Logout from Azure

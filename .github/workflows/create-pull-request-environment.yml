@@ -399,22 +399,29 @@ jobs:
           name: angular-app
           path: ./app-artifacts
         
-      # Sprawdź czy pliki zostały prawidłowo pobrane
-      - name: Verify downloaded files
+      # Sprawdź ścieżkę do index.html
+      - name: Find path to index.html
+        id: find-index
         run: |
           echo "Downloaded artifact contents:"
           ls -la ./app-artifacts
           
-          # Sprawdź czy index.html istnieje
-          if [ -f "./app-artifacts/index.html" ]; then
-            echo "index.html found - deployment can proceed"
-          else
-            echo "ERROR: index.html not found in app-artifacts directory"
-            echo "Full directory structure:"
+          # Znajdź plik index.html
+          INDEX_PATH=$(find ./app-artifacts -name "index.html" | head -n 1)
+          
+          if [ -z "$INDEX_PATH" ]; then
+            echo "❌ ERROR: index.html not found in artifacts!"
             find ./app-artifacts -type f | head -n 20
             exit 1
           fi
-        
+          
+          # Pobierz katalog zawierający index.html
+          INDEX_DIR=$(dirname "$INDEX_PATH")
+          echo "✅ Found index.html in: $INDEX_DIR"
+          
+          # Zapisz jako zmienną wyjściową
+          echo "index_dir=$INDEX_DIR" >> $GITHUB_OUTPUT
+    
       # Get deployment token
       - name: Get Static Web App deployment token
         id: get-token
