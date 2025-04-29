@@ -209,12 +209,49 @@ jobs:
           echo "Downloading backend artifact from: $DOWNLOAD_URL"
           echo "Release: $RELEASE_NAME (Tag: $TAG_NAME)"
           
-          # Pobierz plik ZIP z release
-          curl -L -o ./backend/backend.zip "$DOWNLOAD_URL"
+          # Użyj curl z opcjami diagnostycznymi i opcją -L do śledzenia przekierowań
+          echo "Pobieranie pliku za pomocą curl z opcjami diagnostycznymi..."
+          curl -v -L -o ./backend/backend.zip "$DOWNLOAD_URL"
           
           # Sprawdź, czy pobrano poprawnie
           if [ -f ./backend/backend.zip ]; then
-            echo "Successfully downloaded backend artifact"
+            echo "File downloaded, checking size and content:"
+            ls -la ./backend/backend.zip
+            file ./backend/backend.zip
+            
+            # Sprawdź rozmiar pliku - jeśli jest za mały, próbuj pobrać bezpośrednio przez API
+            FILE_SIZE=$(stat -c %s ./backend/backend.zip)
+            if [ "$FILE_SIZE" -lt 1000 ]; then
+              echo "WARNING: Downloaded file is too small ($FILE_SIZE bytes). Trying API download method..."
+              
+              # Pobierz plik używając innej metody - bezpośrednio przez API GitHub
+              GH_API_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.TOKEN_PAT }}" \
+                                 -H "Accept: application/octet-stream" \
+                                 "https://api.github.com/repos/${GITHUB_REPOSITORY_OWNER}/tempGameGather/releases/assets/$(echo '${{ steps.get-latest-release.outputs.result }}' | jq -r '.asset_id')")
+              
+              # Pobierz plik z alternatywnej ścieżki - pobierz go przez przeglądarkę URL
+              echo "Trying browser download..."
+              # Używamy opcji -H "Accept: application/octet-stream" aby wymusić pobranie pliku
+              curl -L -H "Authorization: token ${{ secrets.TOKEN_PAT }}" \
+                   -H "Accept: application/octet-stream" \
+                   -o ./backend/backend.zip "$DOWNLOAD_URL"
+              
+              # Sprawdź ponownie
+              ls -la ./backend/backend.zip
+              file ./backend/backend.zip
+              
+              FILE_SIZE=$(stat -c %s ./backend/backend.zip)
+              if [ "$FILE_SIZE" -lt 1000 ]; then
+                echo "ERROR: Still can't download a valid ZIP file"
+                cat ./backend/backend.zip
+                exit 1
+              else
+                echo "Successfully downloaded backend artifact using alternative method"
+              fi
+            else
+              echo "Successfully downloaded backend artifact"
+            fi
+            
             echo "BACKEND_RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_ENV 
             echo "BACKEND_TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
           else
