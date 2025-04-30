@@ -290,10 +290,6 @@ jobs:
               
               Frontend has been successfully deployed to production environment.
               
-              ### 🌐 Production URLs
-              
-              **Frontend URL**: [https://${{ needs.terraform_prod.outputs.static_webapp_url }}](https://${{ needs.terraform_prod.outputs.static_webapp_url }})
-              
               *Deployed by: @${context.actor} after merging PR #${prNumber}*`
             });
 
