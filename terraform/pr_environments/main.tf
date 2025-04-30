@@ -61,7 +61,7 @@ resource "azurerm_service_plan" "asp" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   os_type             = "Linux"
-  sku_name            = "B1"
+  sku_name            = "B3"
 }
 
 resource "azurerm_linux_web_app" "as" {
@@ -74,6 +74,9 @@ resource "azurerm_linux_web_app" "as" {
     always_on = false
     application_stack {
         dotnet_version = "8.0"
+    }
+    cors {
+      allowed_origins = ["*"]
     }
   }
 
