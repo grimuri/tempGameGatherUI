@@ -4,13 +4,13 @@ resource "random_string" "random_suffix" {
   upper            = false
 }
 
-variable "prefix_api_base" {
-  default = "preview-gamegather-api"
-}
+# variable "prefix_api_base" {
+#   default = "preview-gamegather-api"
+# }
 
-variable "prefix_db_base" {
-  default = "preview-gamegather-db"
-}
+# variable "prefix_db_base" {
+#   default = "preview-gamegather-db"
+# }
 
 variable "prefix_ui_base" {
   default = "preview-gamegather-ui"
@@ -23,7 +23,7 @@ variable "location" {
 }
 
 locals {
-  prefix_api = "${var.prefix_api_base}-${random_string.random_suffix.result}"
-  prefix_db  = "${var.prefix_db_base}-${random_string.random_suffix.result}"
+  # prefix_api = "${var.prefix_api_base}-${random_string.random_suffix.result}"
+  # prefix_db  = "${var.prefix_db_base}-${random_string.random_suffix.result}"
   prefix_ui  = "${var.prefix_ui_base}-${random_string.random_suffix.result}"
 }
