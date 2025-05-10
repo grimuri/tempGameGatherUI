@@ -398,6 +398,7 @@ jobs:
       name: "Development"
       url: ${{ steps.terraform_output.outputs.static_webapp_url }}
     # needs: terraform
+    needs: build
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:        
       - name: Login to Azure
@@ -432,18 +433,18 @@ jobs:
           # Zapisz jako zmienną wyjściową
           echo "index_dir=$INDEX_DIR" >> $GITHUB_OUTPUT
     
-      - name: Get Static Web App deployment token
-        id: get-token
-        run: |
-          # az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
+      # - name: Get Static Web App deployment token
+      #   id: get-token
+      #   run: |
+      #     # az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
           
-          # Get deployment token
-          appName="${{ needs.terraform.outputs.static_webapp_name }}"
-          deploymentToken=$(az staticwebapp secrets list --name "$appName" --query "properties.apiKey" -o tsv)
+      #     # Get deployment token
+      #     appName="${{ needs.terraform.outputs.static_webapp_name }}"
+      #     deploymentToken=$(az staticwebapp secrets list --name "$appName" --query "properties.apiKey" -o tsv)
           
-          # Set output without exposing token in logs
-          echo "::add-mask::$deploymentToken"
-          echo "deployment_token=$deploymentToken" >> $GITHUB_OUTPUT
+      #     # Set output without exposing token in logs
+      #     echo "::add-mask::$deploymentToken"
+      #     echo "deployment_token=$deploymentToken" >> $GITHUB_OUTPUT
     
       - name: Deploy UI to Static Web App
         uses: Azure/static-web-apps-deploy@1a947af9992250f3bc2e68ad0754c0b0c11566c9
