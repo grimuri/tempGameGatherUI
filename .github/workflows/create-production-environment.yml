@@ -4,15 +4,18 @@ on:
   workflow_dispatch:
 
 jobs:
-  create-environment:
-    runs-on: ubuntu-latest
-    environment:
-      name: "Production"
+  create-environment:    
     defaults:
       run:
         working-directory: ./terraform/prod_infrastructure
+    runs-on: ubuntu-latest
+    environment:
+      name: "Production"
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3.1.2
         
