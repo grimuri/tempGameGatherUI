@@ -397,7 +397,7 @@ jobs:
     environment:
       name: "Development"
       url: ${{ steps.terraform_output.outputs.static_webapp_url }}
-    needs: terraform
+    # needs: terraform
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:        
       - name: Login to Azure
