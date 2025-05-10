@@ -454,6 +454,7 @@ jobs:
           app_location: "${{ steps.find-index.outputs.index_dir }}"
           skip_app_build: true
           output_location: ""
+          deployment_environment: "Production"
 
       - name: Comment on PR
         if: github.event_name == 'pull_request' && github.event.action != 'closed'
