@@ -39,10 +39,14 @@ jobs:
         run: |
           mkdir -p src/environments
           
+          # Set environment variables
+          API_URL="${{ vars.AZURE_BACKEND_URL }}"
+          echo "API URL: $API_URL"
+          
           # Create environment.ts (production)
           echo "export const environment = {" > src/environments/environment.ts
           echo "  production: true," >> src/environments/environment.ts         
-          echo "  apiUrl: '${{ vars.AZURE_BACKEND_URL }}'," >> src/environments/environment.ts
+          echo "  apiUrl: '$API_URL'," >> src/environments/environment.ts
           echo "};" >> src/environments/environment.ts
 
           # Display the created environment file
