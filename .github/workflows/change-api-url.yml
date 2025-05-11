@@ -12,6 +12,8 @@ jobs:
   process-comment:
     if: startsWith(github.event.comment.body, '[API]')
     runs-on: ubuntu-latest
+    outputs:
+      api_url: ${{ steps.extract-api-url.outputs.api_url }}
     steps:
       - name: Extract API URL from comment
         id: extract-api-url
