@@ -151,7 +151,7 @@ jobs:
           az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
 
           echo "Fetching preview environment URL..."
-          STATIC_WEB_APP_NAME= ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
+          STATIC_WEB_APP_NAME="${{ vars.AZURE_STATIC_WEB_APP_NAME }}"
           ENVIRONMENT_NAME="dev"
 
           # Pobierz URL środowiska `dev`
