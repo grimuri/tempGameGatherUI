@@ -144,23 +144,29 @@ jobs:
           output_location: ""
           deployment_environment: dev
       
-      - name: Extract Deployment URL
-        id: extract-url
+      - name: Get Preview Environment URL
+        id: get-preview-url
         run: |
-          # Zapisz logi do pliku
-          LOG_FILE=$(mktemp)
-          echo "Extracting deployment URL from logs..."
-          cat $GITHUB_STEP_SUMMARY #> $LOG_FILE
+          echo "Logging in to Azure..."
+          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
+          
+          echo "Fetching preview environment URL..."
+          STATIC_WEB_APP_NAME= $ {{ vars.AZURE_STATIC_WEBAPP_NAME }}
+          ENVIRONMENT_NAME="dev"
 
-          # Wyodrębnij URL z logów
-          DEPLOYMENT_URL=$(grep -oP 'Visit your site at: \K(https?://\S+)' $LOG_FILE)
-          if [ -z "$DEPLOYMENT_URL" ]; then
-            echo "❌ ERROR: Deployment URL not found in logs!"
+          # Pobierz URL środowiska `dev`
+          PREVIEW_URL=$(az staticwebapp environment list \
+            --name $STATIC_WEB_APP_NAME \
+            --query "[?name=='$ENVIRONMENT_NAME'].hostname" \
+            -o tsv)
+
+          if [ -z "$PREVIEW_URL" ]; then
+            echo "❌ ERROR: Preview environment URL not found for environment '$ENVIRONMENT_NAME'"
             exit 1
           fi
 
-          echo "Extracted Deployment URL: $DEPLOYMENT_URL"
-          echo "static_web_app_url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+          echo "Preview Environment URL: $PREVIEW_URL"
+          echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
 
       - name: Comment on PR
         if: github.event_name == 'pull_request' && github.event.action != 'closed'
@@ -168,8 +174,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const staticWebAppUrl = `${{ steps.extract-url.outputs.static_web_app_url }}`;
-            const apiUrl = `${{ vars.AZURE_BACKEND_URL }}`; 
+            const staticWebAppUrl = `${{ steps.get-preview-url.outputs.preview_url }}`;
+            const apiUrl = `${{ vars.AZURE_BACKEND_URL }}`;
 
             const commentBody = `
             ### Environment Created

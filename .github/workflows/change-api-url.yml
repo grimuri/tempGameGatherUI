@@ -164,14 +164,14 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const staticWebAppUrl = `${{ steps.extract-url.outputs.static_web_app_url }}`;
+            #const staticWebAppUrl = `${{ steps.extract-url.outputs.static_web_app_url }}`;
             const apiUrl = `${{ needs.process-comment.outputs.api_url }}`;
-
+            #- **Frontend URL**: [${staticWebAppUrl}](${staticWebAppUrl})
             const commentBody = `
             ### Rebuild and Deployment Complete
             The application has been rebuilt and deployed with the following details:
             
-            - **Frontend URL**: [${staticWebAppUrl}](${staticWebAppUrl})
+            
             - **API URL**: [${apiUrl}](${apiUrl})
             `;
             
