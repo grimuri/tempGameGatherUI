@@ -149,7 +149,7 @@ jobs:
         run: |
           echo "Logging in to Azure..."
           az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
-          
+
           echo "Fetching preview environment URL..."
           STATIC_WEB_APP_NAME= $ {{ vars.AZURE_STATIC_WEBAPP_NAME }}
           ENVIRONMENT_NAME="dev"
@@ -206,7 +206,7 @@ jobs:
 
     steps:
       - name: Login to Azure
-          run: |
+        run: |
             echo "Logging in to Azure..."
             az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
 
