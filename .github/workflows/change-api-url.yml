@@ -1,0 +1,130 @@
+name: Rebuild and Deploy on API Comment
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  process-comment:
+    if: startsWith(github.event.comment.body, '[API]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract API URL from comment
+        id: extract-api-url
+        run: |
+          # Pobierz treść komentarza
+          COMMENT_BODY="${{ github.event.comment.body }}"
+          
+          # Wyodrębnij URL API z komentarza
+          if [[ "$COMMENT_BODY" =~ ^\[API\]\ (.+)$ ]]; then
+            API_URL="${BASH_REMATCH[1]}"
+            echo "Extracted API URL: $API_URL"
+            echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          else
+            echo "❌ ERROR: Comment does not match the required format '[API] url_api'"
+            exit 1
+          fi
+
+  rebuild:
+    needs: process-comment
+    runs-on: ubuntu-latest
+    environment:
+      name: "Development"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Create environment files
+        run: |
+          mkdir -p src/environments
+
+          # Ustaw URL API z komentarza
+          API_URL="${{ needs.process-comment.outputs.api_url }}"
+          echo "Using API URL: $API_URL"
+
+          # Tworzenie pliku environment.ts
+          echo "export const environment = {" > src/environments/environment.ts
+          echo "  production: true," >> src/environments/environment.ts
+          echo "  apiUrl: '$API_URL'," >> src/environments/environment.ts
+          echo "};" >> src/environments/environment.ts
+
+          # Wyświetlenie zawartości pliku
+          echo "Generated environment.ts:"
+          cat src/environments/environment.ts
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Angular application
+        run: npm run build -- --configuration production
+
+      - name: List build output
+        run: |
+          echo "Dist directory contents:"
+          ls -la ./dist
+
+      - name: Upload Angular artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: angular-app
+          path: ./dist/*
+
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: "Development"
+      url: ${{ steps.deploy-ui.outputs.static_web_app_url }}
+    needs: rebuild
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Angular artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: angular-app
+
+      - name: Deploy UI to Static Web App
+        id: deploy-ui
+        uses: Azure/static-web-apps-deploy@1a947af9992250f3bc2e68ad0754c0b0c11566c9
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_PRODUCTION_WEBAPP_TOKEN }}
+          repo_token: ${{ github.token }}
+          action: "upload"
+          app_location: "./dist"
+          skip_app_build: true
+          output_location: ""
+
+      - name: Comment on PR
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const staticWebAppUrl = `https://${{ steps.deploy-ui.outputs.static_web_app_url }}`;
+            const apiUrl = `\`${{ needs.process-comment.outputs.api_url }}\``;
+
+            const commentBody = `
+            ### Rebuild and Deployment Complete
+            The application has been rebuilt and deployed with the following details:
+            
+            - **Frontend URL**: [${staticWebAppUrl}](${staticWebAppUrl})
+            - **API URL**: ${apiUrl}
+            `;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
