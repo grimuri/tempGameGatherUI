@@ -183,22 +183,26 @@ jobs:
           echo "Preview Environment URL: $PREVIEW_URL"
           echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
 
+      - name: Debug API URL
+        run: |
+          echo "API URL: ${{ needs.process-comment.outputs.api_url }}"
+          
       - name: Comment on PR
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const staticWebAppUrl = `${{ steps.get-preview-url.outputs.preview_url }}`;
-            apiUrl="${{ needs.process-comment.outputs.api_url }}"
+            const apiUrl = `${{ needs.process-comment.outputs.api_url }}`;
 
             const commentBody = `
             ### Rebuild and Deployment Complete
             The application has been rebuilt and deployed with the following details:
-            
-            - **Frontend URL**: [http://${staticWebAppUrl}](http://${staticWebAppUrl})
-            - **API URL**: [$apiUrl]($apiUrl)
+
+            - **Frontend URL**: [${staticWebAppUrl}](${staticWebAppUrl})
+            - **API URL**: [${apiUrl}](${apiUrl})
             `;
-            
+
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
