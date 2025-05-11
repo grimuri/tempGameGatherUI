@@ -181,7 +181,7 @@ jobs:
             ### Environment Created
             The environment for this pull request has been created successfully.
             
-            - **Frontend URL**: [${staticWebAppUrl}](${staticWebAppUrl})
+            - **Frontend URL**: [http://${staticWebAppUrl}](http://${staticWebAppUrl})     
             - **API URL**: [${apiUrl}](${apiUrl})
             `;
             
