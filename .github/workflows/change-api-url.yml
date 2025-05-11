@@ -44,6 +44,20 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Check Angular project name
+        id: project-name
+        run: |
+          # Odczytaj nazwę projektu z angular.json
+          PROJECT_NAME=$(cat angular.json | jq -r '.defaultProject // ""')
+          
+          # Jeśli nie ma defaultProject, spróbuj pobrać pierwszy projekt
+          if [[ -z "$PROJECT_NAME" || "$PROJECT_NAME" == "null" ]]; then
+            PROJECT_NAME=$(cat angular.json | jq -r 'keys | .[] | select(. != "version" and . != "$schema")' | head -n 1)
+          fi
+          
+          echo "Angular project name detected as: $PROJECT_NAME"
+          echo "project_name=$PROJECT_NAME" >> $GITHUB_OUTPUT
+
       - name: Create environment files
         run: |
           mkdir -p src/environments
@@ -77,7 +91,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: angular-app
-          path: ./dist/*
+          path: ./dist/${{ steps.project-name.outputs.project_name }}
 
   deploy:
     runs-on: ubuntu-latest
@@ -94,6 +108,29 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: angular-app
+          path: ./app-artifacts
+
+      - name: Find path to index.html
+        id: find-index
+        run: |
+          # echo "Downloaded artifact contents:"
+          # ls -la ./app-artifacts
+          
+          # Znajdź plik index.html
+          INDEX_PATH=$(find ./app-artifacts -name "index.html" | head -n 1)
+          
+          # if [ -z "$INDEX_PATH" ]; then
+          #   echo "❌ ERROR: index.html not found in artifacts!"
+          #   find ./app-artifacts -type f | head -n 20
+          #   exit 1
+          # fi
+          
+          # Pobierz katalog zawierający index.html
+          INDEX_DIR=$(dirname "$INDEX_PATH")
+          echo "✅ Found index.html in: $INDEX_DIR"
+          
+          # Zapisz jako zmienną wyjściową
+          echo "index_dir=$INDEX_DIR" >> $GITHUB_OUTPUT
 
       - name: Deploy UI to Static Web App
         id: deploy-ui
@@ -102,7 +139,7 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_PRODUCTION_WEBAPP_TOKEN }}
           repo_token: ${{ github.token }}
           action: "upload"
-          app_location: "./dist"
+          app_location: "${{ steps.find-index.outputs.index_dir }}"
           skip_app_build: true
           output_location: ""
 

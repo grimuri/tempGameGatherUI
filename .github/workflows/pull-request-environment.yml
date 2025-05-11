@@ -96,9 +96,9 @@ jobs:
     needs: build
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:        
-      - name: Login to Azure
-        run: |
-          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
+      # - name: Login to Azure
+      #   run: |
+      #     az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
     
       - name: Download Angular artifact
         uses: actions/download-artifact@v4
@@ -109,17 +109,17 @@ jobs:
       - name: Find path to index.html
         id: find-index
         run: |
-          echo "Downloaded artifact contents:"
-          ls -la ./app-artifacts
+          # echo "Downloaded artifact contents:"
+          # ls -la ./app-artifacts
           
           # Znajdź plik index.html
           INDEX_PATH=$(find ./app-artifacts -name "index.html" | head -n 1)
           
-          if [ -z "$INDEX_PATH" ]; then
-            echo "❌ ERROR: index.html not found in artifacts!"
-            find ./app-artifacts -type f | head -n 20
-            exit 1
-          fi
+          # if [ -z "$INDEX_PATH" ]; then
+          #   echo "❌ ERROR: index.html not found in artifacts!"
+          #   find ./app-artifacts -type f | head -n 20
+          #   exit 1
+          # fi
           
           # Pobierz katalog zawierający index.html
           INDEX_DIR=$(dirname "$INDEX_PATH")
@@ -160,10 +160,10 @@ jobs:
               body: commentBody
             });
 
-      - name: Logout from Azure
-        run: |
-          echo "Logging out from Azure..."
-          az logout 
+      # - name: Logout from Azure
+      #   run: |
+      #     echo "Logging out from Azure..."
+      #     az logout 
 
 
   close_pull_request:
