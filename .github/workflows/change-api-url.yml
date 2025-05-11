@@ -171,7 +171,7 @@ jobs:
             });
 
   close_pull_request:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    if: startsWith(github.event.comment.body, '[END]')
     runs-on: ubuntu-latest
     environment:
       name: "Development"
