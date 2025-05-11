@@ -151,13 +151,13 @@ jobs:
           output_location: ""
           deployment_environment: dev
 
-      - name: Extract Deployment URL
-        id: extract-url
-        run: |
-          # Wyodrębnij URL z logów
-          DEPLOYMENT_URL=$(cat $GITHUB_ENV | grep "Visit your site at:" | awk '{print $5}')
-          echo "Extracted Deployment URL: $DEPLOYMENT_URL"
-          echo "static_web_app_url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+      # - name: Extract Deployment URL
+      #   id: extract-url
+      #   run: |
+      #     # Wyodrębnij URL z logów
+      #     DEPLOYMENT_URL=$(cat $GITHUB_ENV | grep "Visit your site at:" | awk '{print $5}')
+      #     echo "Extracted Deployment URL: $DEPLOYMENT_URL"
+      #     echo "static_web_app_url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
 
       - name: Comment on PR
         uses: actions/github-script@v6
