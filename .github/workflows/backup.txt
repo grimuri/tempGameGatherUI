@@ -494,3 +494,307 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_PRODUCTION_WEBAPP_TOKEN }}
           action: "close"
+
+
+---------------------------------------------------------------------------------------------------------
+
+name: Destroy pull request environment - GameGatherUI
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+  actions: read
+
+
+jobs:
+  destroy:
+    defaults:
+      run:
+        working-directory: ./terraform
+    runs-on: ubuntu-latest
+    environment:
+      name: "Development"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3.1.2
+
+      # - name: Terraform Format
+      #   id: fmt
+      #   run: terraform fmt 
+        
+      - name: Terraform Init
+        id: init
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          echo "##[group]Terraform Init"
+          echo "Initializing Terraform..."
+          
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ secrets.AZURE_STORAGE_RESOURCE_GROUP_NAME }}" \
+            -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}" \
+            -backend-config="container_name=${{ secrets.AZURE_CONTAINER_NAME }}" \
+            -backend-config="key=${{ secrets.AZURE_KEY }}"
+
+      # - name: Terraform Validate
+      #   id: validate
+      #   run: terraform validate
+
+      - name: Terraform Destroy
+        id: destroy
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: terraform destroy -auto-approve
+
+  # terraform_prod:
+  #   if: github.event.pull_request.merged == true
+  #   needs: destroy
+  #   runs-on: ubuntu-latest
+  #   defaults:
+  #     run:
+  #       working-directory: ./terraform
+  #   outputs:
+  #     static_webapp_name: ${{ steps.terraform_output.outputs.static_webapp_name }}
+  #     static_webapp_url: ${{ steps.terraform_output.outputs.static_webapp_url }}
+  #     resource_group_name: ${{ steps.terraform_output.outputs.resource_group_name }}
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+
+  #     - name: Setup Terraform
+  #       uses: hashicorp/setup-terraform@v3.1.2
+
+  #     - name: Terraform Format
+  #       id: fmt
+  #       run: terraform fmt 
+        
+  #     - name: Terraform Init
+  #       id: init
+  #       env:
+  #         ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  #         ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  #         ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #         ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  #       run: |
+  #         echo "##[group]Terraform Init"
+  #         echo "Initializing Terraform..."
+          
+  #         terraform init -input=false \
+  #           -backend-config="resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME_PROD }}" \
+  #           -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT_NAME_PROD }}" \
+  #           -backend-config="container_name=${{ secrets.AZURE_CONTAINER_NAME_PROD }}" \
+  #           -backend-config="key=${{ secrets.AZURE_KEY_PROD }}"
+
+  #     - name: Terraform Validate
+  #       id: validate
+  #       run: terraform validate
+
+  #     - name: Terraform Plan
+  #       id: plan
+  #       env:
+  #         ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  #         ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  #         ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #         ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  #       run: terraform plan -no-color -input=false
+
+  #     - name: Terraform Apply
+  #       id: apply
+  #       run: terraform apply -auto-approve -no-color -input=false 
+  #       env:
+  #         ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  #         ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  #         ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #         ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  #         ARM_USE_AZUREAD: true    
+
+  #     - name: Terraform Output
+  #       id: terraform_output
+  #       run: |
+  #         echo "static_webapp_name=$(terraform output -raw static_webapp_name)" >> $GITHUB_OUTPUT
+  #         echo "static_webapp_url=$(terraform output -raw static_webapp_url)" >> $GITHUB_OUTPUT
+  #         echo "resource_group_name=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
+  #       env:
+  #         ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  #         ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  #         ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #         ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+  # # Job to build Angular application with production API URL
+  # build-angular-prod:
+  #   if: github.event.pull_request.merged == true
+  #   needs: [terraform_prod]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+      
+  #     # Setup Node.js for Angular
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '20'
+  #         cache: 'npm'
+      
+  #     # Check Angular project name
+  #     - name: Check Angular project name
+  #       id: project-name
+  #       run: |
+  #         # Read project name from angular.json
+  #         PROJECT_NAME=$(cat angular.json | jq -r '.defaultProject // ""')
+          
+  #         # If defaultProject is not defined, try to get the first project
+  #         if [[ -z "$PROJECT_NAME" || "$PROJECT_NAME" == "null" ]]; then
+  #           PROJECT_NAME=$(cat angular.json | jq -r 'keys | .[] | select(. != "version" and . != "$schema")' | head -n 1)
+  #         fi
+          
+  #         echo "Angular project name detected as: $PROJECT_NAME"
+  #         echo "project_name=$PROJECT_NAME" >> $GITHUB_OUTPUT
+      
+  #     # Create environment files with production API address
+  #     - name: Create environment files
+  #       run: |
+  #         mkdir -p src/environments
+          
+  #         # Create environment.ts (production)
+  #         echo "export const environment = {" > src/environments/environment.ts
+  #         echo "  production: true," >> src/environments/environment.ts
+  #         echo "  apiUrl: 'https://gamegather-api-webapp.azurewebsites.net/api'," >> src/environments/environment.ts
+  #         echo "};" >> src/environments/environment.ts
+      
+  #     # Install dependencies
+  #     - name: Install dependencies
+  #       run: npm ci
+      
+  #     # Build Angular application
+  #     - name: Build Angular application
+  #       run: npm run build --configuration=production
+      
+  #     # List build output
+  #     - name: List build output
+  #       run: |
+  #         echo "Dist directory contents:"
+  #         ls -la ./dist
+  #         echo "Project name from previous step: ${{ steps.project-name.outputs.project_name }}"
+          
+  #         # Check generated files
+  #         if [ -d "./dist/${{ steps.project-name.outputs.project_name }}" ]; then
+  #           echo "Found project subdirectory in dist:"
+  #           ls -la "./dist/${{ steps.project-name.outputs.project_name }}"
+  #         else
+  #           echo "Using root dist directory for artifact"
+  #         fi
+      
+  #     # Upload Angular build artifact
+  #     - name: Upload Angular artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: angular-app-prod
+  #         # If project subdirectory exists, use it
+  #         path: |
+  #           ./dist/${{ steps.project-name.outputs.project_name }}
+  #           ./dist/*
+  #         if-no-files-found: error
+
+  # deploy:
+  #   if: github.event.pull_request.merged == true
+  #   needs: [terraform_prod, build-angular-prod]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+        
+  #     - name: Login to Azure
+  #       run: |
+  #         echo "Logging in to Azure..."
+  #         az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
+
+  #     # Download our newly built artifact
+  #     - name: Download Angular production artifact
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: angular-app-prod
+  #         path: ./app-artifacts
+          
+  #     # Find path to index.html
+  #     - name: Find path to index.html
+  #       id: find-index
+  #       run: |
+  #         echo "Downloaded artifact contents:"
+  #         ls -la ./app-artifacts
+          
+  #         # Find index.html file
+  #         INDEX_PATH=$(find ./app-artifacts -name "index.html" | head -n 1)
+          
+  #         if [ -z "$INDEX_PATH" ]; then
+  #           echo "❌ ERROR: index.html not found in artifacts!"
+  #           find ./app-artifacts -type f | head -n 20
+  #           exit 1
+  #         fi
+          
+  #         # Get directory containing index.html
+  #         INDEX_DIR=$(dirname "$INDEX_PATH")
+  #         echo "✅ Found index.html in: $INDEX_DIR"
+          
+  #         # Save as output variable
+  #         echo "index_dir=$INDEX_DIR" >> $GITHUB_OUTPUT
+    
+  #     # Get deployment token
+  #     - name: Get Static Web App deployment token
+  #       id: get-token
+  #       run: |
+  #         # Get deployment token
+  #         appName="${{ needs.terraform_prod.outputs.static_webapp_name }}"
+  #         deploymentToken=$(az staticwebapp secrets list --name "$appName" --query "properties.apiKey" -o tsv)
+          
+  #         # Set output without exposing token in logs
+  #         echo "::add-mask::$deploymentToken"
+  #         echo "deployment_token=$deploymentToken" >> $GITHUB_OUTPUT
+    
+  #     # Use the official action with dynamic app_location
+  #     - name: Deploy UI to Static Web App
+  #       uses: Azure/static-web-apps-deploy@1a947af9992250f3bc2e68ad0754c0b0c11566c9
+  #       with:
+  #         azure_static_web_apps_api_token: ${{ steps.get-token.outputs.deployment_token }}
+  #         repo_token: ${{ github.token }}
+  #         action: "upload"
+  #         app_location: "${{ steps.find-index.outputs.index_dir }}"
+  #         skip_app_build: true
+  #         output_location: ""
+
+  #     - name: Add deployment comment to PR
+  #       uses: actions/github-script@v6
+  #       with:
+  #         github-token: ${{ github.token }}
+  #         script: |
+  #           const prNumber = context.payload.pull_request?.number;
+  #           if (!prNumber) return;
+            
+  #           github.rest.issues.createComment({
+  #             issue_number: prNumber,
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             body: `#### 🚀 Production UI deployment successful!
+              
+  #             Frontend has been successfully deployed to production environment.
+              
+  #             *Deployed by: @${context.actor} after merging PR #${prNumber}*`
+  #           });
+
+  #     - name: Logout from Azure
+  #       run: |
+  #         az logout
