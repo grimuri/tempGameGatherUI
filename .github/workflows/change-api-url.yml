@@ -189,7 +189,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const staticWebAppUrl = `${{ steps.get-preview-url.outputs.preview_url }}`;
-            const apiUrl = `${{ needs.process-comment.outputs.api_url }}`;
+            const apiUrl="${{ needs.process-comment.outputs.api_url }}"
 
             const commentBody = `
             ### Rebuild and Deployment Complete
