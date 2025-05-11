@@ -195,7 +195,6 @@ jobs:
           REPOSITORY_URL: ${{github.event.repository.html_url}}
           BRANCH: ${{github.event.pull_request.head.ref}} 
         uses: Azure/static-web-apps-deploy@v1
-        uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_PRODUCTION_WEBAPP_TOKEN }}
           action: "close"
