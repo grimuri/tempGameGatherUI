@@ -214,7 +214,7 @@ jobs:
         if: github.event.action == 'closed'
         run: |
           echo "Closing pull request environment..."
-          az staticwebapp environment delete --name ${{ secrets.AZURE_STATIC_WEB_APP_NAME }} --environment "dev" --yes
+          az staticwebapp environment delete --name ${{ vars.AZURE_STATIC_WEB_APP_NAME }} --environment "dev" --yes
           echo "Pull request environment closed."
 
       - name: Logout from Azure
