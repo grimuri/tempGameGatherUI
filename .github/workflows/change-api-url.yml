@@ -145,7 +145,7 @@ jobs:
           app_location: "${{ steps.find-index.outputs.index_dir }}"
           skip_app_build: true
           output_location: ""
-          production_branch: "main"
+          deployment_environment: "Development"
 
       - name: Comment on PR
         uses: actions/github-script@v6
