@@ -153,14 +153,14 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const staticWebAppUrl = `https://${{ steps.deploy-ui.outputs.static_web_app_url }}`;
-            const apiUrl = `\`${{ needs.process-comment.outputs.api_url }}\``;
+            const apiUrl = `${{ needs.process-comment.outputs.api_url }}`;
 
             const commentBody = `
             ### Rebuild and Deployment Complete
             The application has been rebuilt and deployed with the following details:
             
             - **Frontend URL**: [${staticWebAppUrl}](${staticWebAppUrl})
-            - **API URL**: ${apiUrl}
+            - **API URL**: [${apiUrl}](${apiUrl})
             `;
             
             await github.rest.issues.createComment({

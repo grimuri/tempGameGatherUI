@@ -146,15 +146,15 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const staticWebAppUrl = `https://${{ steps.deploy-ui.outputs.static_web_app_url }}`;
-            const apiUrl = `\`${{ vars.AZURE_BACKEND_URL }}\``; // Pobierz URL API z kroku process-comment
+            const staticWebAppUrl = `${{ steps.deploy-ui.outputs.static_web_app_url }}`;
+            const apiUrl = `${{ vars.AZURE_BACKEND_URL }}`;
 
             const commentBody = `
             ### Environment Created
             The environment for this pull request has been created successfully.
             
             - **Frontend URL**: [${staticWebAppUrl}](${staticWebAppUrl})
-            - **API URL**: ${apiUrl}
+            - **API URL**: [${apiUrl}](${apiUrl})
             `;
             
             await github.rest.issues.createComment({
