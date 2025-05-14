@@ -95,10 +95,8 @@ jobs:
       url: ${{ steps.deploy-ui.outputs.static_web_app_url }}
     needs: build
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
-    steps:        
-      # - name: Login to Azure
-      #   run: |
-      #     az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }} --output none
+
+    steps:       
     
       - name: Download Angular artifact
         uses: actions/download-artifact@v4
@@ -192,10 +190,10 @@ jobs:
               body: commentBody
             });
 
-      # - name: Logout from Azure
-      #   run: |
-      #     echo "Logging out from Azure..."
-      #     az logout 
+      - name: Logout from Azure
+        run: |
+          echo "Logging out from Azure..."
+          az logout 
 
 
   close_pull_request:
@@ -221,23 +219,3 @@ jobs:
         run: |
           echo "Logging out from Azure..."
           az logout
-
-      # - name: Extract Pull Request Number
-      #   id: extract-pr-number
-      #   run: |
-      #     PR_NUMBER="${{ github.event.pull_request.number }}"
-      #     echo "Pull Request Number: $PR_NUMBER"
-      #     echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-
-      # - name: Close Pull Request Environment
-      #   env:
-      #     DEPLOYMENT_PROVIDER: "Custom"
-      #     REPOSITORY_URL: ${{ github.event.repository.html_url }}
-      #     BRANCH: ${{ github.event.pull_request.head.ref }} 
-      #     PULL_REQUEST_ID: ${{ steps.extract-pr-number.outputs.pr_number }}
-      #   uses: Azure/static-web-apps-deploy@v1
-      #   with:
-      #     azure_static_web_apps_api_token: ${{ secrets.AZURE_PRODUCTION_WEBAPP_TOKEN }}
-      #     action: "close"
-      #     deployment_environment: dev
-      #     pull_request_id: ${{ steps.extract-pr-number.outputs.pr_number }}

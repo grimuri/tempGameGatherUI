@@ -1,7 +1,9 @@
 name: Change Production Environment
 
 on:
-  push:
+  pull_request:
+    branches:
+      - main
     paths:
       - "terraform/prod_infrastructure/**"
   workflow_dispatch:
@@ -55,7 +57,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: ./tfplan
+          path: .
 
   terraform-aply:
     needs: terraform-plan
